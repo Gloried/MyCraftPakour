@@ -1,0 +1,28 @@
+PakourLobby:
+  World: Empty
+  x: 8
+  y: 4
+  z: 8
+EnterGroup:
+  '1':
+    - 'xxx1'
+    - 'xxx2'
+  '2':
+    - 'xxx3'
+    - 'xxx4'
+
+MapList:
+  test1:
+    World: Empty
+    Spawn:
+      x: xx
+      y: xx
+      z: xx
+    End:
+      x: xx
+      y: xx
+      z: xx
+    Ex:
+      x: xx
+      y: xx
+      z: xx

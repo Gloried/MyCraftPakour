@@ -1,0 +1,14 @@
+name: MyCraftPakour
+description: MyCraftPakour
+main: cc.mycraft.hd.pakour.load
+version: 1.0
+author: Gloried
+commands: 
+  pakour:
+    description: 跑酷系统
+    permission: mycraft.cmd.player
+    permission-message: §c权限不足.
+  pk:
+    description: 跑酷系统
+    permission: mycraft.cmd.player
+    permission-message: §c权限不足.
