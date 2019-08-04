@@ -20,54 +20,10 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 public class MapManager {
 	
-	/*
-	 * config设置格式
-	 * 
-	 * EnterGroup:
-	 *   '1':
-	 *     - 'xxx1'
-	 *     - 'xxx2'
-	 *     - 'xxx3'
-	 *   '2':
-	 *     - 'xxx4'
-	 *     - 'xxx5'
-	 * 
-	 * MapList:
-	 *   xxx1:
-	 *     World: xxx
-	 *     Spawn:
-	 *       x: xx
-	 *       y: xx
-	 *       z: xx
-	 *     End:
-	 *       x: xx
-	 *       y: xx
-	 *       z: xx
-	 *     Ex:
-	 *       x: xx
-	 *       y: xx
-	 *       z: xx
-	 *       
-	 *   xxx2:
-	 *     World: xxx
-	 *     Spawn:
-	 *       x: xx
-	 *       y: xx
-	 *       z: xx
-	 *     End:
-	 *       x: xx
-	 *       y: xx
-	 *       z: xx
-	 *     Ex:
-	 *       x: xx
-	 *       y: xx
-	 *       z: xx
-	 * 
-	 * */
 	
 	public static HashMap<String,Boolean> PlayingMap = new HashMap<String,Boolean>();
-	public static HashMap<Player,String> PlayerPlaying = new HashMap<Player,String>();
-	public static HashMap<Player,Integer> PlayerLevel = new HashMap<Player,Integer>();
+	public static HashMap<String,String> PlayerPlaying = new HashMap<String,String>();
+	public static HashMap<String,Integer> PlayerLevel = new HashMap<String,Integer>();
 	public static FileConfiguration config;
 	
 	public static void run() {
@@ -87,7 +43,7 @@ public class MapManager {
 	}
 	
 	public static boolean isPlaying(Player p) {
-		return PlayerPlaying.containsKey(p);
+		return PlayerPlaying.containsKey(p.getName());
 	}
 	
 	public static void showEnterGui(Player p,String PlayerEnter) {
@@ -179,7 +135,7 @@ public class MapManager {
 	}
 	
 	public static int giveReward(Player p,double multiply) {
-		String MapName = PlayerPlaying.get(p);
+		String MapName = PlayerPlaying.get(p.getName());
 		if(!load.EcoLoad) {
 			p.sendMessage("经济系统未加载，无法获得奖励。");
 			return 0;
@@ -267,10 +223,13 @@ public class MapManager {
 		int Level = Integer.parseInt(e.getInventory().getName().substring(7));
 		p.teleport(getMapSpawnLocation(MapName));
 		PlayingMap.replace(MapName, true);
-		PlayerPlaying.put(p, MapName);
-		PlayerLevel.put(p, Level);
-		load.FinishedEXPlayers.remove(p.getName());
-		load.FinishedPlayers.remove(p.getName());
+		if(PlayerPlaying.containsKey(p.getName())) {
+			PlayerPlaying.replace(p.getName(), MapName);
+		}else {
+			PlayerPlaying.put(p.getName(), MapName);
+		}
+
+		PlayerLevel.put(p.getName(), Level);
 		givePlayerItems(p, MapName);
 		load.healPlayer(p);
 		if(!p.getGameMode().equals(GameMode.ADVENTURE)&&!p.hasPermission("mycraft.admin")) {
@@ -280,7 +239,7 @@ public class MapManager {
 	
 	
 	public static boolean isCorrectBlock(Player p,String Where,Block b) {
-		String MapName = PlayerPlaying.get(p);
+		String MapName = PlayerPlaying.get(p.getName());
 		if(config.contains("MapList."+MapName+".Parent")) {
 			String parent = "MapList."+config.getString("MapList."+MapName+".Parent");
 			int xOffset = config.getInt(parent+"."+Where+".x") - config.getInt(parent+".Spawn.x");
@@ -290,9 +249,9 @@ public class MapManager {
 					&&(b.getLocation().getBlockY() == config.getInt("MapList."+MapName+".Spawn.y") + yOffset)
 					&&(b.getLocation().getBlockZ() == config.getInt("MapList."+MapName+".Spawn.z") + zOffset);
 		}
-		return (b.getLocation().getBlockX() == config.getInt("MapList."+PlayerPlaying.get(p)+"."+Where+".x"))
-				&&(b.getLocation().getBlockY() == config.getInt("MapList."+PlayerPlaying.get(p)+"."+Where+".y"))
-				&&(b.getLocation().getBlockZ() == config.getInt("MapList."+PlayerPlaying.get(p)+"."+Where+".z"));
+		return (b.getLocation().getBlockX() == config.getInt("MapList."+PlayerPlaying.get(p.getName())+"."+Where+".x"))
+				&&(b.getLocation().getBlockY() == config.getInt("MapList."+PlayerPlaying.get(p.getName())+"."+Where+".y"))
+				&&(b.getLocation().getBlockZ() == config.getInt("MapList."+PlayerPlaying.get(p.getName())+"."+Where+".z"));
 	}
 	
 	
@@ -305,28 +264,31 @@ public class MapManager {
 			return;
 		}
 		//房间里没人且自己不在别的房间玩
-		if(!PlayingMap.get(MapName)&&!PlayerPlaying.containsKey(p)) {
+		if(!PlayingMap.get(MapName)&&!PlayerPlaying.containsKey(p.getName())) {
 			p.teleport(PM.getSaveLoc());
 			PlayingMap.replace(MapName, true);
-			PlayerPlaying.put(p, MapName);
-			PlayerLevel.put(p, PM.getSaveLevel());
+			PlayerPlaying.put(p.getName(), MapName);
+			PlayerLevel.put(p.getName(), PM.getSaveLevel());
 			givePlayerItems(p, MapName);
+			p.sendMessage("§c已返回上个存档点！");
 			return;
 		}
 		//自己还在房间里玩
-		if(PlayingMap.get(MapName)&&PlayerPlaying.get(p).equals(MapName)) {
+		if(PlayingMap.get(MapName)&&PlayerPlaying.get(p.getName()).equals(MapName)) {
 			p.teleport(PM.getSaveLoc());
+			return;
 		}
+		Bukkit.getLogger().info("MN = "+MapName + " "+PlayingMap.get(MapName) + PlayerPlaying.get(p.getName()).equals(MapName));
+		p.sendMessage("§c你的存档点不在当前跑酷房间，无法返回。");
 	}
 	
 	
 	public static void PlayerExit(Player p) {
-		if(PlayerPlaying.containsKey(p)) {
-			PlayingMap.replace(PlayerPlaying.get(p), false);
-			PlayerPlaying.remove(p);
+		if(PlayerPlaying.containsKey(p.getName())) {
+			PlayingMap.replace(PlayerPlaying.get(p.getName()), false);
+			PlayerPlaying.remove(p.getName());
 		}
 		p.getInventory().clear();
-		load.FinishedEXPlayers.remove(p.getName());
 		load.FinishedPlayers.remove(p.getName());
 	}
 	

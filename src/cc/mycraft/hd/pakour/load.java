@@ -12,10 +12,12 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.RegisteredServiceProvider;
@@ -45,23 +47,22 @@ public class load extends JavaPlugin implements Listener{
 	
 	private HashMap<String,Block> ClickedBlock = new HashMap<String,Block>();
 	public static HashMap<String,Boolean> FinishedPlayers = new HashMap<String,Boolean>();
-	public static HashMap<String,Boolean> FinishedEXPlayers = new HashMap<String,Boolean>();
 	public static HashMap<String,Long> HealCooldown = new HashMap<String,Long>();
-	public static Location SpawnLocation;
 	public static Economy econ;
 	public static boolean EcoLoad = false;
 
 	private static load main;
 	public static List<String> RoomList; 
 	
+	private int SpawnX;
+	private int SpawnY;
+	private int SpawnZ;
+	private String SpawnWorld;
+	
 	@Override
 	public void onEnable() {
 		main = this;
 		saveDefaultConfig();
-		SpawnLocation = new Location(Bukkit.getWorld(getConfig().getString("PakourLobby.World")), 
-							getConfig().getDouble("PakourLobby.x"), 
-							getConfig().getDouble("PakourLobby.y"), 
-							getConfig().getDouble("PakourLobby.z"));
 		RoomList = (List<String>)getConfig().getList("MapLoad");
 		MapManager.run();
 		PlayerManager.run();
@@ -72,7 +73,10 @@ public class load extends JavaPlugin implements Listener{
 			EcoLoad = true;
 			Bukkit.getLogger().info("Vault Found! Enable rewards!");
 		}
-		
+		SpawnWorld = getConfig().getString("PakourLobby.World");
+		SpawnX = getConfig().getInt("PakourLobby.x");
+		SpawnY = getConfig().getInt("PakourLobby.y"); 
+		SpawnZ = getConfig().getInt("PakourLobby.z");
 		getServer().getPluginManager().registerEvents(this, this);
 		super.onEnable();
 	}
@@ -96,6 +100,7 @@ public class load extends JavaPlugin implements Listener{
 			p.sendMessage("你没有加入跑酷房间。");
 			return;
 		}
+		Location SpawnLocation = new Location(Bukkit.getWorld(SpawnWorld),SpawnX,SpawnY,SpawnZ);
 		p.teleport(SpawnLocation);
 		MapManager.PlayerExit(p);
 	}
@@ -108,6 +113,13 @@ public class load extends JavaPlugin implements Listener{
 		MapManager.PlayerExit(e.getPlayer());
 	}
 	
+	@EventHandler(ignoreCancelled=true,priority=EventPriority.MONITOR)
+	public void onPlayerSendCommand(PlayerCommandPreprocessEvent e){
+		if(MapManager.isPlaying(e.getPlayer())&&!e.getMessage().toLowerCase().split(" ")[0].replaceAll("/", "").equals("pk")) {
+			e.getPlayer().sendMessage("§e离开跑酷房间以后才能使用这个指令。离开指令：/pk leave");
+			e.setCancelled(true);
+		}
+	}
 	public static void healPlayer(Player p) {
 		p.setHealth(p.getMaxHealth());
 		p.setFoodLevel(20);
@@ -116,7 +128,11 @@ public class load extends JavaPlugin implements Listener{
 	@EventHandler
 	public void onPlayerWalkOnGoldTapBoard(PlayerInteractEvent e) {
 		Player p =  e.getPlayer();
-		if(!MapManager.isPlaying(p)||e.getAction().equals(Action.RIGHT_CLICK_AIR)) {
+
+		if(!MapManager.isPlaying(p)) {
+			return;
+		}
+		if(e.getAction()==null&&e.getClickedBlock()!=null&&e.getClickedBlock().getType()==null) {
 			return;
 		}
 		if(e.getAction().equals(Action.PHYSICAL)&&e.getClickedBlock().getType().equals(Material.GOLD_PLATE)) {
@@ -129,7 +145,7 @@ public class load extends JavaPlugin implements Listener{
 			PlayerManager.setSaveLoc(p);
 			return;
 		}
-		if(e.getClickedBlock().getType().equals(Material.EMERALD_BLOCK)) {
+		if(e.getAction().equals(Action.PHYSICAL)&&e.getClickedBlock().getType().equals(Material.IRON_PLATE)) {
 			//完成关卡，全服播报。
 			if(!MapManager.isCorrectBlock(p, "End" ,e.getClickedBlock())) {
 				return;
@@ -137,9 +153,9 @@ public class load extends JavaPlugin implements Listener{
 			if(FinishedPlayers.containsKey(p.getName())) {
 				return;
 			}
-			String boardcastMsg = "&6&l热烈祝贺"+p.getName()+"通关跑酷第"+MapManager.PlayerLevel.get(p)+"关!";
+			String boardcastMsg = "&6&l热烈祝贺"+p.getName()+"通关跑酷第"+MapManager.PlayerLevel.get(p.getName())+"关!";
 			if(p.getMaxHealth()==2d) {
-				boardcastMsg = "&6&l热烈祝贺"+p.getName()+"大佬通关困难跑酷第"+MapManager.PlayerLevel.get(p)+"关!";
+				boardcastMsg = "&6&l热烈祝贺"+p.getName()+"大佬通关困难跑酷第"+MapManager.PlayerLevel.get(p.getName())+"关!";
 			}
 			BoardCast(boardcastMsg);
 			FinishedPlayers.put(p.getName(), true);
@@ -151,20 +167,22 @@ public class load extends JavaPlugin implements Listener{
 			DelayTeleport(p,5);
 			return;
 		}
-		if(e.getClickedBlock().getType().equals(Material.DIAMOND_BLOCK)) {
+		if(e.getAction().equals(Action.PHYSICAL)&&e.getClickedBlock().getType().equals(Material.STONE_PLATE)) {
 			//完成关卡，全服播报。
 			if(!MapManager.isCorrectBlock(p, "Ex" ,e.getClickedBlock())) {
 				return;
 			}
-			if(FinishedEXPlayers.containsKey(p.getName())) {
+			
+			if(FinishedPlayers.containsKey(p.getName())) {
 				return;
 			}
-			String boardcastMsg = "&6&l热烈祝贺"+p.getName()+"通关跑酷第"+MapManager.PlayerLevel.get(p)+"关Ex路线!";
+			
+			String boardcastMsg = "&6&l热烈祝贺"+p.getName()+"通关跑酷第"+MapManager.PlayerLevel.get(p.getName())+"关Ex路线!";
 			if(p.getMaxHealth()==2d) {
-				boardcastMsg = "&6&l热烈祝贺"+p.getName()+"大佬通关困难跑酷第"+MapManager.PlayerLevel.get(p)+"关Ex路线!";
+				boardcastMsg = "&6&l热烈祝贺"+p.getName()+"大佬通关困难跑酷第"+MapManager.PlayerLevel.get(p.getName())+"关Ex路线!";
 			}
 			BoardCast(boardcastMsg);
-			FinishedEXPlayers.put(p.getName(), true);
+			FinishedPlayers.put(p.getName(), true);
 			p.sendMessage("Ex关卡完成，5秒后回到大厅。");
 			PlayerManager PM = new PlayerManager(p);
 			Title T = new Title("§6恭喜通关EX", "§e获得￥"+MapManager.giveReward(p, 2)+"通关奖励!", 10, 60, 10);
@@ -176,10 +194,12 @@ public class load extends JavaPlugin implements Listener{
 	}
 
 	private void DelayTeleport(Player p,long Second) {
-		int TaskID = Bukkit.getScheduler().scheduleAsyncDelayedTask(this, 
+		int TaskID = Bukkit.getScheduler().scheduleSyncDelayedTask(this, 
 				new Runnable(){
 					public void run() {
+						FinishedPlayers.remove(p.getName());
 						BackToLobby(p);
+						MapManager.PlayerPlaying.remove(p.getName());
 					}
 			}, Second*20l);
 	}
@@ -276,9 +296,6 @@ public class load extends JavaPlugin implements Listener{
 				return false;
 			}
 			MapManager.removeItem(p, args[1]);
-			return true;
-		case "generatebarrier": 
-			GenerateBarrier.GenerateRandomBarrier();
 			return true;
 		case "heal": 
 			if(!MapManager.isPlaying(p)) {
